@@ -118,7 +118,7 @@ standard library.
 \newcommand{\mytilde}{\lower.6ex\hbox{\char`\~}}
 <<setup, include=FALSE>>=
 library("knitr")
-opts_chunk$set(fig.path='figure/latex-', cache.path='cache/latex-', cache=TRUE, size="small", out.columns=84, fig.align='center', fig.show='hold')
+opts_chunk$set(fig.path='figure/latex-', cache.path='cache/latex-', cache=FALSE, size="small", out.columns=84, fig.align='center', fig.show='hold')
 options(formatR.arrow=TRUE, width=90)
 hook_source <- knit_hooks$get('source')
 knit_hooks$set(source = function(x, options) {
@@ -396,12 +396,13 @@ same environment (i.e., scope) as the evaluation request. A snippet can contain
 any number of \code{@\{...\}} expressions.  For example,
 
 <<evaluateScalaCodeStringInterpolation>>=
-n <- 10
-k <- 3
+n <- 10L
+k <- 3L
 label <- "number of threesomes among ten people"
-s %@% '
-  val count = (1 to @{k}).foldLeft(1) { (prod,i) => prod * (@{n}-i+1)/i }
-  println("The @{label} is " + count + ".")
+count <- s(n,k,label) * '
+  val count = (1 to k).foldLeft(1) { (prod,i) => prod * (n-i+1)/i }
+  println(s"The $label is $count.")
+  count
 '
 @
 
@@ -413,7 +414,7 @@ which, when parsed by the Scala compiler, leads to a slightly different value
 than the calculated value.
 
 <<evaluateScalaCodeInterpolationError>>=
-s * 'math.pow(count, 20) == @{tenChooseThree^20}'
+s(tenChooseThreePow20=count^20,count) * 'math.pow(count, 20) == tenChooseThreePow20'
 @
 
 \subsubsection{Primitive and copyable types}
@@ -518,7 +519,7 @@ evaluating a \Scala expression using the \code{\%\mytilde\%} and
 the examples below, merely the name of a \Scala identifier.
 
 <<gettingUsingDollarSign1>>=
-s %@% 'val fibSeq = Array[Double](0, 1, 1, 2, 3, 5, 8, 13, 21)'
+s + 'val fibSeq = Array[Double](0, 1, 1, 2, 3, 5, 8, 13, 21)'
 fibSeqAsDouble  <- s *  'fibSeq'
 fibSeqReference <- s ^ 'fibSeq'
 @
@@ -528,28 +529,18 @@ identifier name.  For example, the following both provide equivalent
 definitions for \code{fibSeqAsDouble} above.
 
 <<gettingUsingDollarSign2>>=
-fibSeqAsDouble <- s$fibSeq
-fibSeqAsDouble <- s$val('fibSeq')
+fibSeqAsDouble <- s$fibSeq()
 @
 
 Likewise, an equivalent definition for \code{fibSeqReference} is
 
 <<gettingUsingDollarSign3>>=
-fibSeqReference <- s$.val('fibSeq')
+fibSeqReference <- s$.fibSeq
 @
-
-Note that \code{val} is a reserved word in \Scala. Therefore, using \code{val}
-and \code{.val} does not conflict with any variable names in \Scala.  While
-somewhat more verbose, the argument to \code{val} and \code{.val} can be a
-literal or a variable, whereas the \code{\$} operator requires a literal.
 
 Values of copyable types and \Scala references can be set in the \Scala session
 using assignment with the \code{\$} operator, e.g.:
 
-<<gettingUsingDollarSign4>>=
-s$fibSeq <- c(0, 1, 1, 2, 3, 5, 8, 13, 21)
-s$copyOfFibSeqReference <- fibSeqReference
-@
 
 \subsubsection{Instantiating objects}
 
@@ -560,6 +551,7 @@ demonstrates functionally equivalent ways of creating a new instance of
 <<evaluateScalaCodeInstantiate>>=
 seed <- 123L
 rng <- s(seed) ^ 'new scala.util.Random(seed)'
+rng <- s(y=seed) ^ 'new scala.util.Random(y)'
 rng <- s$.new_scala.util.Random(seed)
 @
 
@@ -595,7 +587,7 @@ desired even when working with copyable types, add a final argument
 \code{.AS.REFERENCE=TRUE}. For example,
 
 <<evaluateScalaCodeReference3>>=
-intReference <- rng$nextInt(10L, .AS.REFERENCE=TRUE)
+intReference <- rng$.nextInt(10L)
 @
 
 The value of an instance variable may be accessed as if there was a method of
@@ -624,7 +616,7 @@ following three statements are all functionally equivalent:
 
 <<evaluateScalaCodeCompanion>>=
 oneToTenReference <- s ^ 'Array.range(1, 11)'
-oneToTenReference <- s$.Array$range(1L, 11L)
+oneToTenReference <- s$.Array.range(1L, 11L)
 @
 
 As for instantiating objects, each approach has its advantages in terms of
@@ -654,7 +646,7 @@ null reference to \code{java.util.Properties} to clear the system properties,
 e.g.:
 
 <<nullAsArgument>>=
-s$.java.lang.System$setProperties(scalaNull('java.util.Properties'))
+s$java.lang.System.setProperties(s$.null_java.util.Properties())
 @
 
 \R has no scalar types but they are often used in \Scala.  As such, length-one
@@ -669,12 +661,12 @@ method that takes an array of any arbitrary type \code{T} and a value of type
 \code{T}, and sets every element of the array to that value:
 
 <<lengthOne>>=
-s %@% '
+s + '
   object setter {
     def apply[T](x: Array[T], value: T) = x.indices.foreach { x(_) = value }
   }
 '
-setter <- s$.setter
+setter <- s$setter
 @
 
 When calling the \code{apply} method of the \code{setter} object, the first
@@ -688,7 +680,7 @@ is \emph{not} wrapped by \code{I}:
 <<lengthOne2>>=
 arr <- s ^ 'Array(math.Pi, math.E)'
 arr$mkString("<", ", ", ">")
-setter(I(arr), 3)
+setter(arr, 3)
 arr$mkString("<", ", ", ">")
 @
 
@@ -713,10 +705,10 @@ element of the array using the following.  The last four statements are
 functionally equivalent.
 
 <<evaluateScalaCodeUpdate>>=
-s %@% 'val fibSeq = Array[Double](0, 1, 1, 2, 3, 5, 8, 13, 21)'
+s + 'val fibSeq = Array[Double](0, 1, 1, 2, 3, 5, 8, 13, 21)'
 fibSeqReference <- s ^ 'fibSeq'
-s %@% 'fibSeq(1) = math.Pi'
-s$.fibSeq$update(1L, pi)
+s * 'fibSeq(1) = math.Pi'
+s$fibSeq.update(1L, pi)
 fibSeqReference$update(1L, pi)
 @
 
@@ -736,8 +728,7 @@ expressions are functionally equivalent.
 
 <<evaluateScalaCodeApplyWithQuote>>=
 fibSeqAsDouble <- s * 'Array[Double](0, 1, 1, 2, 3, 5, 8, 13, 21)'
-fibSeqAsDouble <- s * 'Array[Double](0, 1, 1, 2, 3, 5, 8, 13, 21)'
-fibSeqAsDouble <- s$'.Array[Double]'(0L, 1L, 1L, 2L, 3L, 5L, 8L, 13L, 21L)
+fibSeqAsDouble <- s$'Array[Double]'(0L, 1L, 1L, 2L, 3L, 5L, 8L, 13L, 21L)
 @
 
 Note the quotes around \code{apply[Double]} used in the last two expressions.
@@ -808,6 +799,26 @@ bell.version1 <- function(n, format=c("character","integer","double","log")[3]) 
   else if ( format == "double" ) value
   else if ( format == "log" ) log(value)
 }
+@
+
+<<bellUsingR>>=
+bell.version1b <- function(n=scalaType("I0")) {
+  #if ( n <= 0 ) stop("'n' must be at least 1.")
+  scalaType("Double")
+  if ( n == 1 ) return(1)
+  r1 <- numeric(n)
+  r2 <- numeric(n)
+  r1[1] <- 1
+  for ( k in 2:n ) {
+    r2[1] <- r1[k-1]
+    for ( i in 2:k ) r2[i] <- r1[i-1] + r2[i-1]
+    tmp <- r1
+    r1 <- r2
+    r2 <- tmp
+  }
+  r2[n]
+}
+bell <- s ^ bell.version1b
 @
 
 The \code{bell.version1} function performs calculations based on
