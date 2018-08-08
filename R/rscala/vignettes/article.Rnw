@@ -803,8 +803,8 @@ bell.version1 <- function(n, format=c("character","integer","double","log")[3]) 
 
 <<bellUsingR>>=
 bell.version1b <- function(n=scalaType("I0")) {
-  #if ( n <= 0 ) stop("'n' must be at least 1.")
-  scalaType("Double")
+  scalaType("D0")
+  if ( n <= 0 ) stop("'n' must be at least 1.")
   if ( n == 1 ) return(1)
   r1 <- numeric(n)
   r2 <- numeric(n)
@@ -812,9 +812,7 @@ bell.version1b <- function(n=scalaType("I0")) {
   for ( k in 2:n ) {
     r2[1] <- r1[k-1]
     for ( i in 2:k ) r2[i] <- r1[i-1] + r2[i-1]
-    tmp <- r1
     r1 <- r2
-    r2 <- tmp
   }
   r2[n]
 }
